@@ -125,7 +125,7 @@ export const CONTRACT_ABI = [
 
 // Update this after deploying to Sepolia
 // For local testing, deploy and paste the address here
-export const CONTRACT_ADDRESS = "";
+export const CONTRACT_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
 
 // Sepolia chain ID
 export const SEPOLIA_CHAIN_ID = "0xaa36a7";

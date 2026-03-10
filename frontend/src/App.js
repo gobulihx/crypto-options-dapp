@@ -15,26 +15,21 @@ function App() {
   const [tab, setTab] = useState("market"); // "market" | "create"
 
   // Connect wallet
-  async function connectWallet() {
-    if (!window.ethereum) {
-      alert("Please install MetaMask");
-      return;
-    }
+    async function connectWallet() {
+      try {
+        // Local development: connect directly to Hardhat node
+        const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+        const signer = await provider.getSigner(0); // Account #0
+        const address = await signer.getAddress();
+        setAccount(address);
 
-    try {
-      const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
-      });
-      setAccount(accounts[0]);
-
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const c = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-      setContract(c);
-    } catch (err) {
-      console.error("Wallet connection failed:", err);
+        const c = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+        setContract(c);
+      } catch (err) {
+        console.error("Wallet connection failed:", err);
+        alert("Make sure Hardhat node is running (npx hardhat node)");
+      }
     }
-  }
 
   // Load all options from contract
   const loadOptions = useCallback(async () => {
