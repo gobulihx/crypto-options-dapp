@@ -17,7 +17,6 @@ European-style ETH/USD options with on-chain cash settlement using Chainlink pri
 - MetaMask browser extension (for Sepolia deployment later)
 
 ### 1. Clone and Install
-
 ```bash
 git clone https://github.com/gobulihx/crypto-options-dapp.git
 cd crypto-options-dapp
@@ -29,7 +28,6 @@ cd ..
 ```
 
 ### 2. Run Tests
-
 ```bash
 npx hardhat test
 ```
@@ -39,7 +37,6 @@ All 33 tests should pass.
 ### 3. Start Local Blockchain
 
 Open **Terminal 1** (keep it running):
-
 ```bash
 npx hardhat node
 ```
@@ -49,31 +46,23 @@ This starts a local Ethereum node with 20 test accounts, each holding 10000 ETH.
 ### 4. Deploy Contracts Locally
 
 Open **Terminal 2**:
-
 ```bash
 npx hardhat run scripts/deploy-local.js --network localhost
 ```
 
 You should see output like:
-
 ```
-MockV3Aggregator deployed to: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-CryptoOptions deployed to: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+MockV3Aggregator deployed to: 0x5FbDB2...
+CryptoOptions deployed to: 0xe7f172...
 
---- Copy this address to frontend/src/config.js ---
-CONTRACT_ADDRESS: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+Contract info auto-written to frontend/src/contract.json
 ```
 
-Copy the `CryptoOptions` address and paste it into `frontend/src/config.js`:
-
-```javascript
-export const CONTRACT_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
-```
+The deployment script automatically exports the ABI and contract address to `frontend/src/contract.json` — no manual copy needed.
 
 ### 5. Start Frontend
 
 In **Terminal 2**:
-
 ```bash
 cd frontend
 npm start
@@ -96,7 +85,6 @@ Browser opens at `http://localhost:3000`.
 6. Switch to **Options Market** tab — you should see your new option card with status **OPEN**
 
 ## Project Structure
-
 ```
 crypto-options-dapp/
 ├── contracts/
@@ -110,7 +98,8 @@ crypto-options-dapp/
 │   └── src/
 │       ├── App.js              # Main app component
 │       ├── App.css             # Styles
-│       ├── config.js           # Contract address and ABI
+│       ├── config.js           # Reads ABI and address from contract.json
+│       ├── contract.json       # Contract ABI and deployed address
 │       ├── utils/format.js     # Formatting helpers
 │       └── components/
 │           ├── WalletConnect.js
@@ -130,7 +119,6 @@ crypto-options-dapp/
 - **Style**: European (exercise only at expiry)
 
 ### State Flow
-
 ```
 Open → Purchased → Settled
 Open → Expired (if no buyer by expiry)
@@ -141,3 +129,4 @@ Open → Expired (if no buyer by expiry)
 - Local development uses `JsonRpcProvider` to connect directly to Hardhat node (no MetaMask needed)
 - The `.env` file is gitignored — never commit private keys
 - Mock price feed defaults to $2000 ETH/USD for local testing
+- Deployment auto-generates `frontend/src/contract.json` with ABI and address — no manual sync needed
