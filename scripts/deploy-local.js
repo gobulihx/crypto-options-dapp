@@ -1,4 +1,6 @@
 const hre = require("hardhat");
+const fs = require("fs");
+const path = require("path");
 
 async function main() {
   // Deploy mock price feed ($2000 ETH/USD, 8 decimals)
@@ -15,8 +17,16 @@ async function main() {
   const optionsAddr = await options.getAddress();
   console.log("CryptoOptions deployed to:", optionsAddr);
 
-  console.log("\n--- Copy this address to frontend/src/config.js ---");
-  console.log("CONTRACT_ADDRESS:", optionsAddr);
+  // Auto-export ABI + address to frontend
+  const artifact = await hre.artifacts.readArtifact("CryptoOptions");
+  const output = {
+    address: optionsAddr,
+    abi: artifact.abi
+  };
+
+  const outputPath = path.join(__dirname, "../frontend/src/contract.json");
+  fs.writeFileSync(outputPath, JSON.stringify(output, null, 2));
+  console.log("\nContract info auto-written to frontend/src/contract.json");
 }
 
 main().catch((error) => {
