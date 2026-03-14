@@ -1,132 +1,135 @@
 # Crypto Options DApp
 
-European-style ETH/USD options with on-chain cash settlement using Chainlink price feeds.
+European-style ETH/USD options trading on Ethereum. Cash-settled using Chainlink price feeds.
 
-## Tech Stack
+**Live**: https://hashhouse-options.netlify.app  
+**Contract**: Verified on [Etherscan Sepolia](https://sepolia.etherscan.io/address/0xe1C13e177182c521E71e354b09849a79c59eD444)
 
-- **Smart Contracts**: Solidity, Hardhat, OpenZeppelin, Chainlink
-- **Frontend**: React, ethers.js
-- **Testing**: Mocha, Chai
+## Setup
 
-## Quick Start
+Requires Node.js v18+ and MetaMask.
 
-### Prerequisites
-
-- Node.js v18+
-- Git
-- MetaMask browser extension (for Sepolia deployment later)
-
-### 1. Clone and Install
 ```bash
 git clone https://github.com/gobulihx/crypto-options-dapp.git
 cd crypto-options-dapp
 npm install
 cp .env.example .env
-cd frontend
-npm install
-cd ..
+cd frontend && npm install && cd ..
 ```
 
-### 2. Run Tests
+## Running Tests
+
 ```bash
 npx hardhat test
 ```
 
-All 33 tests should pass.
+61 tests total: 33 unit tests (core contract logic) + 28 extended tests (payoff consistency, P&L calculation, lifecycle, concurrency, edge cases).
 
-### 3. Start Local Blockchain
+## Local Development
 
-Open **Terminal 1** (keep it running):
+Uses Hardhat's built-in network with mock price feed ($2000 ETH/USD). No MetaMask or testnet ETH needed.
+
+Terminal 1:
 ```bash
 npx hardhat node
 ```
 
-This starts a local Ethereum node with 20 test accounts, each holding 10000 ETH.
-
-### 4. Deploy Contracts Locally
-
-Open **Terminal 2**:
+Terminal 2:
 ```bash
 npx hardhat run scripts/deploy-local.js --network localhost
 ```
 
-You should see output like:
-```
-MockV3Aggregator deployed to: 0x5FbDB2...
-CryptoOptions deployed to: 0xe7f172...
-
-Contract info auto-written to frontend/src/contract.json
-```
-
-The deployment script automatically exports the ABI and contract address to `frontend/src/contract.json` — no manual copy needed.
-
-### 5. Start Frontend
-
-In **Terminal 2**:
+Terminal 3:
 ```bash
 cd frontend
+REACT_APP_NETWORK=local npm start
+```
+
+Opens at `localhost:3000`. The environment variable switches the frontend to connect directly to the local node instead of Sepolia/MetaMask.
+
+To go back to Sepolia mode, just restart without the variable:
+```bash
 npm start
 ```
 
-Browser opens at `http://localhost:3000`.
+## Deploying to Sepolia
 
-### 6. Create an Option (End-to-End Test)
+Fill in `.env`:
+```
+SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
+PRIVATE_KEY=your_wallet_private_key
+ETHERSCAN_API_KEY=your_etherscan_key
+```
 
-1. Click **Connect Wallet** — it connects to Hardhat Account #0 automatically
-2. You should see `ETH/USD: $2,000.00` in the header and your wallet address in the top right
-3. Click the **Create Option** tab
-4. Fill in the form:
-   - Option Type: **Call**
-   - Strike Price (USD): **2000**
-   - Premium (ETH): **0.05**
-   - Collateral (ETH): **1**
-   - Expiry (hours from now): **1**
-5. Click **Create Option**
-6. Switch to **Options Market** tab — you should see your new option card with status **OPEN**
+Then:
+```bash
+npx hardhat run scripts/deploy-sepolia.js --network sepolia
+```
+
+This deploys with the real Chainlink ETH/USD feed, verifies on Etherscan, and writes the contract address + ABI to `frontend/src/contract.json`.
+
+## Deploying Frontend
+
+```bash
+cd frontend
+npm run build
+npx netlify deploy --prod --dir=build
+```
 
 ## Project Structure
-```
-crypto-options-dapp/
-├── contracts/
-│   ├── CryptoOptions.sol       # Core options contract
-│   └── MockV3Aggregator.sol    # Mock Chainlink price feed for testing
-├── test/
-│   └── CryptoOptions.test.js   # 33 unit tests
-├── scripts/
-│   └── deploy-local.js         # Local deployment script
-├── frontend/
-│   └── src/
-│       ├── App.js              # Main app component
-│       ├── App.css             # Styles
-│       ├── config.js           # Reads ABI and address from contract.json
-│       ├── contract.json       # Contract ABI and deployed address
-│       ├── utils/format.js     # Formatting helpers
-│       └── components/
-│           ├── WalletConnect.js
-│           ├── CreateOption.js
-│           └── OptionList.js
-├── .env.example                # Environment variable template
-└── hardhat.config.js
-```
 
-## Contract Design
-
-- **Option Type**: Call or Put
-- **Strike Price**: USD with 8 decimals (Chainlink format)
-- **Premium**: Paid in ETH by buyer to seller
-- **Collateral**: Locked in ETH by seller at creation
-- **Settlement**: Cash settlement at expiry using Chainlink ETH/USD price
-- **Style**: European (exercise only at expiry)
-
-### State Flow
 ```
-Open → Purchased → Settled
-Open → Expired (if no buyer by expiry)
+contracts/
+  CryptoOptions.sol        — options contract (create, buy, settle, expire)
+  MockV3Aggregator.sol     — mock Chainlink feed for local testing
+test/
+  CryptoOptions.test.js    — unit tests
+  CryptoOptions.extended.test.js — payoff, P&L, lifecycle, edge case tests
+scripts/
+  deploy-local.js          — deploys to Hardhat node with mock feed
+  deploy-sepolia.js        — deploys to Sepolia with real Chainlink feed
+frontend/src/
+  App.js                   — main app, tab navigation, wallet connection
+  config.js                — network switching (local vs Sepolia)
+  contract.json            — Sepolia contract address + ABI
+  contract-local.json      — local contract address + ABI (gitignored)
+  utils/format.js          — formatting, payoff estimation
+  components/
+    WalletConnect.js       — wallet panel (balance, network, disconnect)
+    CreateOption.js        — option creation form with collateral guidance
+    OptionList.js          — market view (open options)
+    Portfolio.js           — user positions, filters, P&L summary
+    Toast.js               — transaction notifications
 ```
 
-## Notes
+## How It Works
 
-- Local development uses `JsonRpcProvider` to connect directly to Hardhat node (no MetaMask needed)
-- The `.env` file is gitignored — never commit private keys
-- Mock price feed defaults to $2000 ETH/USD for local testing
-- Deployment auto-generates `frontend/src/contract.json` with ABI and address — no manual sync needed
+A writer creates an option by choosing a type (Call/Put), strike price, premium, expiry, and locking ETH as collateral. A buyer purchases the option by paying the premium, which goes directly to the writer. After expiry, anyone can trigger settlement. The contract fetches the ETH/USD price from Chainlink and calculates the payoff:
+
+- Call: `max(0, marketPrice - strikePrice) / marketPrice` in ETH
+- Put: `max(0, strikePrice - marketPrice) / marketPrice` in ETH
+- Payoff is capped at the collateral amount
+
+The buyer receives the payoff, the writer gets back the remaining collateral. If nobody bought the option, the writer can reclaim the full collateral after expiry.
+
+## Limitations
+
+- Payoff is capped at collateral — no dynamic margin or liquidation
+- Settlement must be triggered manually (no automation)
+- ETH/USD only
+
+## Environment Variables
+
+| Variable | Purpose |
+|---|---|
+| `SEPOLIA_RPC_URL` | Sepolia RPC endpoint |
+| `PRIVATE_KEY` | Deployer wallet key (never commit this) |
+| `ETHERSCAN_API_KEY` | Contract verification |
+| `REACT_APP_NETWORK` | Set to `local` for Hardhat node mode |
+
+`.env` is gitignored.
+
+## Team
+
+FTGP2526_Group6_HashHouse  
+University of Bristol — SEMTM0029 Financial Technology Group Project, 2025/26
