@@ -24,9 +24,9 @@ async function main() {
     abi: artifact.abi
   };
 
-  const outputPath = path.join(__dirname, "../frontend/src/contract.json");
+  const outputPath = path.join(__dirname, "../frontend/src/contract-local.json");
   fs.writeFileSync(outputPath, JSON.stringify(output, null, 2));
-  console.log("\nContract info auto-written to frontend/src/contract.json");
+  console.log("\nLocal contract info written to frontend/src/contract-local.json");
 }
 
 main().catch((error) => {
