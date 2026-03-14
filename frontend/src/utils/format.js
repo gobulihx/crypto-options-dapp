@@ -38,3 +38,43 @@ export function optionStateLabel(stateNum) {
 export function usdToChainlink(dollars) {
   return ethers.parseUnits(String(dollars), 8);
 }
+
+/**
+ * Estimate current payoff for an option given market price
+ * Mirrors the smart contract _calculatePayoff logic
+ * @returns {{ payoffETH: number, isITM: boolean, direction: string }}
+ */
+export function estimatePayoff(option, marketPriceBigInt) {
+  const marketPrice = Number(marketPriceBigInt);
+  const strikePrice = Number(option.strikePrice);
+  const collateral = Number(ethers.formatEther(option.collateral));
+  const optionType = Number(option.optionType);
+
+  if (marketPrice <= 0) return { payoffETH: 0, isITM: false, direction: "—" };
+
+  let priceDiff = 0;
+
+  if (optionType === 0) {
+    // Call: payoff when market > strike
+    if (marketPrice <= strikePrice) {
+      return { payoffETH: 0, isITM: false, direction: "OTM" };
+    }
+    priceDiff = marketPrice - strikePrice;
+  } else {
+    // Put: payoff when market < strike
+    if (marketPrice >= strikePrice) {
+      return { payoffETH: 0, isITM: false, direction: "OTM" };
+    }
+    priceDiff = strikePrice - marketPrice;
+  }
+
+  // Convert USD payoff to ETH: priceDiff / marketPrice
+  let payoffETH = priceDiff / marketPrice;
+
+  // Cap at collateral
+  if (payoffETH > collateral) {
+    payoffETH = collateral;
+  }
+
+  return { payoffETH, isITM: true, direction: "ITM" };
+}

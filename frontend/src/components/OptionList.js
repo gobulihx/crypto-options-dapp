@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import {
   formatUSD,
@@ -7,59 +7,110 @@ import {
   shortenAddress,
   optionTypeLabel,
   optionStateLabel,
+  estimatePayoff,
 } from "../utils/format";
 
-export default function OptionList({ options, contract, account, onUpdated }) {
+function Countdown({ expiry }) {
+  const [timeLeft, setTimeLeft] = useState("");
+
+  useEffect(() => {
+    function update() {
+      const now = Math.floor(Date.now() / 1000);
+      const expiryNum = Number(expiry);
+      const diff = expiryNum - now;
+
+      if (diff <= 0) {
+        setTimeLeft("Expired");
+        return;
+      }
+
+      const h = Math.floor(diff / 3600);
+      const m = Math.floor((diff % 3600) / 60);
+      const s = diff % 60;
+
+      if (h > 24) {
+        const d = Math.floor(h / 24);
+        setTimeLeft(`${d}d ${h % 24}h`);
+      } else if (h > 0) {
+        setTimeLeft(`${h}h ${m}m`);
+      } else if (m > 0) {
+        setTimeLeft(`${m}m ${s}s`);
+      } else {
+        setTimeLeft(`${s}s`);
+      }
+    }
+
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [expiry]);
+
+  const isExpired = timeLeft === "Expired";
+
+  return (
+    <span className={`countdown ${isExpired ? "countdown-expired" : ""}`}>
+      {isExpired ? "Expired" : `⏱ ${timeLeft}`}
+    </span>
+  );
+}
+
+export default function OptionList({ options, contract, account, ethPrice, onUpdated, showToast }) {
   const [loading, setLoading] = useState({});
-  const [error, setError] = useState("");
 
   async function handleBuy(optionId, premium) {
-    setError("");
     setLoading((prev) => ({ ...prev, [optionId]: "buy" }));
     try {
       const tx = await contract.buyOption(optionId, { value: premium });
       await tx.wait();
+      if (showToast) showToast("Option purchased successfully");
       if (onUpdated) onUpdated();
     } catch (err) {
-      setError(err.reason || err.message || "Transaction failed");
+      if (showToast) showToast(err.reason || err.message || "Transaction failed", "error");
     } finally {
       setLoading((prev) => ({ ...prev, [optionId]: null }));
     }
   }
 
   async function handleSettle(optionId) {
-    setError("");
     setLoading((prev) => ({ ...prev, [optionId]: "settle" }));
     try {
       const tx = await contract.settleOption(optionId);
       await tx.wait();
+      if (showToast) showToast("Option settled successfully");
       if (onUpdated) onUpdated();
     } catch (err) {
-      setError(err.reason || err.message || "Transaction failed");
+      if (showToast) showToast(err.reason || err.message || "Transaction failed", "error");
     } finally {
       setLoading((prev) => ({ ...prev, [optionId]: null }));
     }
   }
 
   async function handleExpire(optionId) {
-    setError("");
     setLoading((prev) => ({ ...prev, [optionId]: "expire" }));
     try {
       const tx = await contract.expireOption(optionId);
       await tx.wait();
+      if (showToast) showToast("Collateral reclaimed successfully");
       if (onUpdated) onUpdated();
     } catch (err) {
-      setError(err.reason || err.message || "Transaction failed");
+      if (showToast) showToast(err.reason || err.message || "Transaction failed", "error");
     } finally {
       setLoading((prev) => ({ ...prev, [optionId]: null }));
     }
   }
 
-  if (options.length === 0) {
+  // Only show Open options that haven't expired
+  const openOptions = options.filter(({ data }) => {
+    const state = Number(data.state);
+    const now = Math.floor(Date.now() / 1000);
+    return state === 0 && now < Number(data.expiry);
+  });
+
+  if (openOptions.length === 0) {
     return (
       <div className="card">
         <h2>Options Market</h2>
-        <p className="empty-state">No options created yet.</p>
+        <p className="empty-state">No options available for purchase right now.</p>
       </div>
     );
   }
@@ -69,9 +120,8 @@ export default function OptionList({ options, contract, account, onUpdated }) {
   return (
     <div className="card">
       <h2>Options Market</h2>
-      {error && <div className="error-msg">{error}</div>}
       <div className="options-grid">
-        {options.map(({ id, data }) => {
+        {openOptions.map(({ id, data }) => {
           const state = Number(data.state);
           const isExpired = now >= Number(data.expiry);
           const isSeller =
@@ -104,10 +154,33 @@ export default function OptionList({ options, contract, account, onUpdated }) {
                   <span className="detail-label">Collateral</span>
                   <span className="detail-value">{formatETH(data.collateral)}</span>
                 </div>
+                {/* Collateral coverage indicator for buyer */}
+                {ethPrice && (() => {
+                  const { payoffETH } = estimatePayoff(data, ethPrice);
+                  const collateralNum = Number(ethers.formatEther(data.collateral));
+                  const ratio = payoffETH > 0 ? (collateralNum / payoffETH) * 100 : Infinity;
+                  const level = ratio >= 100 ? "ok" : ratio >= 50 ? "warning" : "danger";
+                  return (
+                    <div className="detail-row">
+                      <span className="detail-label">Coverage</span>
+                      <span className={`detail-value coverage-${level}`}>
+                        {ratio >= 999 ? "Full" : `${ratio.toFixed(0)}%`}
+                        {level === "danger" && " ⚠"}
+                      </span>
+                    </div>
+                  );
+                })()}
                 <div className="detail-row">
                   <span className="detail-label">Expiry</span>
                   <span className="detail-value">{formatExpiry(data.expiry)}</span>
                 </div>
+                {/* Countdown timer */}
+                {(state === 0 || state === 1) && (
+                  <div className="detail-row">
+                    <span className="detail-label">Time Left</span>
+                    <Countdown expiry={data.expiry} />
+                  </div>
+                )}
                 <div className="detail-row">
                   <span className="detail-label">Seller</span>
                   <span className="detail-value">{shortenAddress(data.seller)}</span>
